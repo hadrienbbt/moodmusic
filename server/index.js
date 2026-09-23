@@ -25,7 +25,12 @@ try {
 // Production uses the service-account key. Development and tests use the
 // Firestore emulator (firebase.json) and a demo- project, which the emulator
 // accepts without credentials and which does not exist on the real service.
-if (!config.firebaseKeyPath) process.env.FIRESTORE_EMULATOR_HOST ??= '127.0.0.1:8183'
+// Without a key, Google's auth library would also probe for a Google Cloud
+// metadata server (a warning after network timeouts); that probe is skipped.
+if (!config.firebaseKeyPath) {
+  process.env.FIRESTORE_EMULATOR_HOST ??= '127.0.0.1:8183'
+  process.env.METADATA_SERVER_DETECTION ??= 'none'
+}
 const firebaseApp = config.firebaseKeyPath
   ? initializeApp({ credential: cert(config.firebaseKeyPath) })
   : initializeApp({ projectId: 'demo-moodmusic' })
