@@ -70,6 +70,13 @@ Plain requests, no key:
 - `availableCountries` can be an empty string. Appendix J's market filter
   must treat it as unknown, like a missing value.
 
+Checked again while writing the client (step 4):
+- `GET /v1/artist` also refuses more than 40 `ids` (400, "size must be
+  between 1 and 40"), so the client batches artist lookups by 40 too.
+- `GET /v1/track/recommendation` often returns fewer tracks than `size`: 25
+  or 26 for `size=30`, and once 1 for `size=3`. Appendix J's top-up from the
+  artists' own tracks will be needed most of the time.
+
 ## Spotify probe (2026-09-23 20:06 UTC)
 
 Scopes granted: `playlist-modify-private playlist-modify-public user-top-read`. Unexpected results are in capitals. No personal data is recorded.
