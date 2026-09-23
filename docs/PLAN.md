@@ -1083,7 +1083,7 @@ repository.
 |---|---|---|---|
 | 0 Discovery | in progress | | app status known (Development mode); repository hadrienbbt/moodmusic created 2026-09-23 with this plan, Dependabot alerts and security updates, secret scanning and push protection on; Firebase project `moodmusic-e84ad` (hbarbat@ensc.fr) with its Firestore database in eur3 (europe-west) and a service-account key; client secret rotated, V2 redirect URIs registered and `pi.local` removed, allow-list = Hadrien only for now, Pi facts in docs/DEPLOY.md; pending: V1 login check with the new secret, OpenAPI check and probes (docs/spotify-capabilities.md) |
 | 1 Bootstrap | done | #1 | Express 5 server (config checks, security headers, health, SPA fallback, http/https), Vite 8 + React 19 app, CI on GitHub Actions; deny-all rules deployed to `moodmusic-e84ad` on 2026-09-23; `probe` scripts join package.json with step 0's probes; the `Secure` cookie check of production.test.js comes with sessions (step 3) |
-| 2 Core | todo | | |
+| 2 Core | done | #2 | shared/moods.js and server/core/ with the golden tests of appendix C and a property test against a port of V1 (500 cases); a dance-only selection gets V1's "Pas assez d'émotions sélectionnées" error (no valence or energy to match artists on) |
 | 3 Auth | todo | | |
 | 4 Spotify + ReccoBeats clients | todo | | |
 | 5 Artists API | todo | | |
