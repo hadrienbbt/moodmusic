@@ -13,7 +13,9 @@
     "dev": "NODE_ENV=development node --watch server/index.js",
     "build": "cd app && npm run build",
     "test": "node --test --test-concurrency=1 test/*.test.js",
-    "test:emulator": "firebase emulators:exec --only firestore --project demo-moodmusic \"npm test\""
+    "test:emulator": "firebase emulators:exec --only firestore --project demo-moodmusic \"npm test\"",
+    "probe": "node scripts/probe-spotify.mjs",
+    "probe:reccobeats": "node scripts/probe-reccobeats.mjs"
   },
   "dependencies": {
     "dotenv": "^18.0.3",
