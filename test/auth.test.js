@@ -6,6 +6,7 @@ import assert from 'node:assert/strict'
 
 import { fakeArtist, startFakeSpotify } from './helpers/fake-spotify.js'
 import { adminFirestore, emulatorHost, listDocuments, readDocument, resetFirestore, skip } from './helpers/firestore.js'
+import { login as loginWith } from './helpers/login.js'
 import { createClient, startServer, testEnv } from './helpers/server.js'
 
 const APP_ORIGIN = 'http://moodmusic.test'
@@ -42,19 +43,7 @@ const sessionCookie = client => client.cookies.get('moodmusic.sid')
 const sessionIdOf = cookie => decodeURIComponent(cookie).match(/^s:(.+)\.[^.]+$/)[1]
 const topArtistImports = () => spotify.requests.filter(request => request.path === '/v1/me/top/artists').length
 
-// The whole login in a browser-like client: /auth/login, Spotify's consent
-// page (the fake sends the browser back at once), then the callback.
-const login = async (client, { as, deny = false, state }) => {
-  if (deny) spotify.denyNextLogin()
-  else spotify.loginAs(as)
-  const start = await client.request('/auth/login')
-  const cookieAfterStart = sessionCookie(client)
-  const consent = await fetch(start.location, { redirect: 'manual' })
-  const back = new URL(consent.headers.get('location'))
-  if (state) back.searchParams.set('state', state)
-  const callback = await client.request(`${back.pathname}${back.search}`)
-  return { start, cookieAfterStart, back, callback }
-}
+const login = (client, options) => loginWith(spotify, client, options)
 
 test('a first login creates the user with their top 15 artists and a session', { skip }, async () => {
   spotify.addUser({ id: 'alice', displayName: 'Alice Martin', topArtists: TOP_ARTISTS })

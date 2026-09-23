@@ -235,6 +235,9 @@ export async function startFakeSpotify({ clientId, clientSecret }) {
     addArtists(...artists) {
       for (const artist of artists) catalog.set(artist.id, artist)
     },
+    removeArtists(...ids) {
+      for (const id of ids) catalog.delete(id)
+    },
     user: id => users.get(id),
     loginAs(userId) { nextLogin = { userId } },
     denyNextLogin() { nextLogin = { deny: true } },

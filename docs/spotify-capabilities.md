@@ -128,3 +128,32 @@ Input: 15 Spotify artists. Artist names are not recorded here.
   every one of their first 50 tracks, so the engine of §4.7 has seeds for
   almost everyone. About one track in ten has an empty `availableCountries`,
   which appendix J's market filter must treat as unknown.
+
+## Spotify probe (2026-09-23 21:45 UTC)
+
+Scopes granted: `playlist-modify-private playlist-modify-public user-top-read`. Unexpected results are in capitals. No personal data is recorded.
+
+| Endpoint | Status | Notable fields present/missing | Spec |
+|---|---|---|---|
+| `GET /v1/me` | 200 | id ✓, display_name ✓, images ✓, email absent, country absent, product absent, followers PRESENT, explicit_content absent | – |
+| `GET /v1/me/top/artists?limit=15` | 200 | 15 artists; first: id ✓, name ✓, images ✓, popularity PRESENT, followers PRESENT, genres present | – |
+| `GET /v1/search?q=daft%20punk&type=artist&limit=1` | 200 | 1 artist; id ✓, name ✓, images ✓, popularity PRESENT, followers PRESENT, genres present | – |
+| `GET /v1/search?q=daft%20punk&type=artist&limit=11` | 200, EXPECTED 400 | 11 artists returned | – |
+| `GET /v1/artists/{id}` | 200 | id ✓, name ✓, images ✓, popularity PRESENT, followers PRESENT, genres present | – |
+| `GET /v1/recommendations?seed_artists={id}&limit=1&market=from_token&target_valence=0.5` | 404 | Not Found | DEPRECATED |
+| `POST /v1/me/playlists { name, public: false }` | 201 | id ✓, public ✓, external_urls ✓, items present, tracks present; public = false | – |
+| `POST /v1/playlists/{id}/items { uris: [1 track] }` | 201 | snapshot_id ✓ | – |
+| `DELETE /v1/me/library?uris=spotify:playlist:{id}` | 200 | test playlist removed | – |
+| `GET /v1/me/playlists?limit=1` | 200 | items ✓, total ✓ | – |
+
+## ReccoBeats coverage (2026-09-23 21:46 UTC)
+
+Input: 15 Spotify artists. Artist names are not recorded here.
+
+- Artists known to ReccoBeats: 14 of 15.
+- Tracks per known artist, first page of `size=50`: min 47, median 50, max 50.
+- Tracks with audio features: 697 of 697 (100 %).
+- `availableCountries` of those tracks: empty for 72, includes FR for 577, excludes FR for 48.
+- Largest accepted `size` for `/v1/artist/{id}/track`: 50 (51 refused: "must be less than or equal to 50").
+- Largest accepted `ids` batch for `/v1/audio-features`: 40 (41 refused: "size must be between 1 and 40").
+- Response times in ms, median / max: artist lookup 658 / 658, artist tracks 380 / 768, audio features 499 / 583, limit checks 238 / 408.
