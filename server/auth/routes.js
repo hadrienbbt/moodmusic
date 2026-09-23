@@ -62,7 +62,7 @@ export function authRoutes({ config, users }) {
     if (created) {
       // The login succeeds even if the import fails: artists can be added by hand.
       try {
-        const top = await createSpotifyClient({ config, accessToken: () => tokens.access_token }).topArtists(15)
+        const top = await createSpotifyClient({ config, req }).topArtists(15)
         await users.mergeTopArtists(user.id, top.items ?? [])
       } catch (error) {
         console.error(`Top artists import failed: ${error.message}`)
