@@ -12,6 +12,19 @@ import { COOKIE_NAME } from './session.js'
 // fixation), and the Spotify tokens never leave the server.
 export const SCOPES = 'user-top-read playlist-modify-public playlist-modify-private'
 
+// For the refresh of stale artists: Spotify's artist, null when Spotify no
+// longer has it (404), or undefined to skip it this time. Outages and rate
+// limits stop the round.
+const artistOrGone = async (spotify, id) => {
+  try {
+    return await spotify.artist(id)
+  } catch (error) {
+    if (!(error instanceof SpotifyError) || error.status === 0 || error.status >= 500) throw error
+    if (error.status === 404) return null
+    console.error(`Artist ${id} not refreshed: ${error.message}`)
+  }
+}
+
 const inSession = (req, method) => new Promise((resolve, reject) => req.session[method](error => (error ? reject(error) : resolve())))
 
 export function authRoutes({ config, users }) {
@@ -59,15 +72,19 @@ export function authRoutes({ config, users }) {
     req.session.user = user
     req.session.tokens = { access: tokens.access_token, refresh: tokens.refresh_token, expiresAt: Date.now() + tokens.expires_in * 1000 }
     await inSession(req, 'save')
+    const spotify = createSpotifyClient({ config, req })
     if (created) {
       // The login succeeds even if the import fails: artists can be added by hand.
       try {
-        const top = await createSpotifyClient({ config, req }).topArtists(15)
+        const top = await spotify.topArtists(15)
         await users.mergeTopArtists(user.id, top.items ?? [])
       } catch (error) {
         console.error(`Top artists import failed: ${error.message}`)
       }
     }
+    // In the background: names and images older than 7 days (plan §4.4).
+    users.refreshStaleArtists(user.id, id => artistOrGone(spotify, id))
+      .catch(error => console.error(`Artist refresh stopped: ${error.message}`))
     res.redirect(created ? '/onboarding' : '/')
   })
 
