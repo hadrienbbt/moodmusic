@@ -1,7 +1,8 @@
 // Runs the server the way production does (plan §4.10): NODE_ENV=production,
 // HTTPS with a throwaway self-signed certificate made with openssl, and a
 // throwaway service-account key. Skipped when openssl is not available.
-// The Secure session cookie is checked here once sessions exist (step 3).
+// The Secure session cookie is checked when the Firestore emulator is there
+// to store the session.
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
@@ -11,6 +12,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 
+import { skip as noEmulator } from './helpers/firestore.js'
 import { startServer, throwawayServiceAccount } from './helpers/server.js'
 
 const hasOpenssl = (() => { try { execFileSync('openssl', ['version'], { stdio: 'ignore' }); return true } catch { return false } })()
@@ -77,6 +79,18 @@ test('in production the server answers over HTTPS with the security headers', { 
   assert.equal(page.headers['referrer-policy'], 'same-origin')
   assert.match(page.headers['content-security-policy'], /^default-src 'self'; /)
   assert.equal(page.headers['x-powered-by'], undefined)
+})
+
+test('in production the session cookie is Secure', { skip: skip || noEmulator }, async t => {
+  const server = await startServer(env)
+  t.after(server.stop)
+  const login = await request(`${server.url}/auth/login`)
+  assert.equal(login.status, 302)
+  assert.match(login.headers.location, /^https:\/\/accounts\.spotify\.com\/authorize\?/)
+  const cookie = login.headers['set-cookie'].find(header => header.startsWith('moodmusic.sid='))
+  assert.match(cookie, /; Secure/)
+  assert.match(cookie, /; HttpOnly/)
+  assert.match(cookie, /; SameSite=Lax/)
 })
 
 test('the server refuses to start in production without SESSION_SECRET', { skip }, async () => {
