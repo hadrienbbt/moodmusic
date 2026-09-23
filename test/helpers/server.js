@@ -34,7 +34,35 @@ export const throwawayServiceAccount = projectId => {
   }
 }
 
-// Resolves with { url, output(), stop() } once the server listens. Rejects
+// A browser-like client for the server: it keeps its cookies, does not follow
+// redirects (tests look at each Location header) and keeps every response,
+// so tests can search them all.
+export function createClient(baseUrl) {
+  const cookies = new Map()
+  const responses = []
+  const request = async (path, { method = 'GET', headers = {}, body } = {}) => {
+    const cookie = [...cookies].map(([name, value]) => `${name}=${value}`).join('; ')
+    const response = await fetch(new URL(path, baseUrl), { method, redirect: 'manual', headers: { ...(cookie && { Cookie: cookie }), ...headers }, body })
+    const setCookies = response.headers.getSetCookie()
+    for (const header of setCookies) {
+      const [pair, ...attributes] = header.split(';').map(part => part.trim())
+      const name = pair.slice(0, pair.indexOf('='))
+      const value = pair.slice(pair.indexOf('=') + 1)
+      const expires = attributes.find(attribute => /^expires=/i.test(attribute))
+      if (value === '' || (expires && new Date(expires.slice('expires='.length)) <= new Date())) cookies.delete(name)
+      else cookies.set(name, value)
+    }
+    const text = await response.text()
+    let json
+    try { json = JSON.parse(text) } catch {}
+    const result = { status: response.status, headers: response.headers, location: response.headers.get('location'), setCookies, text, json }
+    responses.push(result)
+    return result
+  }
+  return { request, cookies, responses }
+}
+
+// Resolves with { url, child, output(), stop() } once the server listens. Rejects
 // when it exits first, with the exit code and output on the error.
 export async function startServer(env) {
   const firestoreHost = env.FIRESTORE_EMULATOR_HOST ?? process.env.FIRESTORE_EMULATOR_HOST ?? '127.0.0.1:1'
@@ -73,7 +101,7 @@ export async function startServer(env) {
         reject(Object.assign(new Error(`server exited with code ${code}:\n${output}`), { exitCode: code, output }))
       })
     })
-    return { url: `${listening.protocol}://127.0.0.1:${listening.port}`, output: () => output, stop }
+    return { url: `${listening.protocol}://127.0.0.1:${listening.port}`, child, output: () => output, stop }
   } catch (error) {
     await stop()
     throw error

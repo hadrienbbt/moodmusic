@@ -21,4 +21,6 @@ To run it locally, put `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET` in
 `firebase emulators:start --only firestore --project demo-moodmusic`, then run
 `npm run dev` (server on http://127.0.0.1:8004) and `npm run dev` in `app/`
 (web app on http://127.0.0.1:5173, which proxies `/api` and `/auth` to the
-server). The configuration variables are listed in §4.9 of the plan.
+server). Log in at http://127.0.0.1:5173/auth/login. Without a
+`SESSION_SECRET` in `.env`, each restart of `npm run dev` picks a new one and
+logs you out. The configuration variables are listed in §4.9 of the plan.
