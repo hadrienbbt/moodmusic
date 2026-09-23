@@ -1,0 +1,18 @@
+node_modules/
+app/dist/
+coverage/
+
+# Secrets: environment files, Firebase service-account keys, certificates
+.env
+.env.*
+.keys/
+*.pem
+*.key
+
+# Firebase CLI cache and emulator logs
+.firebase/
+*.log
+
+.idea/
+.vscode/
+.DS_Store

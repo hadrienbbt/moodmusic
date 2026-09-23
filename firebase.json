@@ -1,0 +1,13 @@
+{
+  "firestore": {
+    "rules": "firestore.rules"
+  },
+  "emulators": {
+    "firestore": {
+      "port": 8183
+    },
+    "ui": {
+      "enabled": false
+    }
+  }
+}
