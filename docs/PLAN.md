@@ -1081,8 +1081,8 @@ repository.
 
 | Step | Status | PR | Notes |
 |---|---|---|---|
-| 0 Discovery | in progress | | app status known (Development mode); repository hadrienbbt/moodmusic created 2026-09-23 with this plan, Dependabot alerts and security updates, secret scanning and push protection on; Firebase project `moodmusic-e84ad` created (hbarbat@ensc.fr), its Firestore database not yet; secret rotation, redirect URIs, allow-list, Pi facts, OpenAPI check and probes (docs/spotify-capabilities.md) pending |
-| 1 Bootstrap | done | #1 | Express 5 server (config checks, security headers, health, SPA fallback, http/https), Vite 8 + React 19 app, CI on GitHub Actions; deny-all rules to deploy once the Firestore database exists; `probe` scripts join package.json with step 0's probes; the `Secure` cookie check of production.test.js comes with sessions (step 3) |
+| 0 Discovery | in progress | | app status known (Development mode); repository hadrienbbt/moodmusic created 2026-09-23 with this plan, Dependabot alerts and security updates, secret scanning and push protection on; Firebase project `moodmusic-e84ad` (hbarbat@ensc.fr) with its Firestore database in eur3 (europe-west); secret rotation, redirect URIs, allow-list, Pi facts, OpenAPI check and probes (docs/spotify-capabilities.md) pending |
+| 1 Bootstrap | done | #1 | Express 5 server (config checks, security headers, health, SPA fallback, http/https), Vite 8 + React 19 app, CI on GitHub Actions; deny-all rules deployed to `moodmusic-e84ad` on 2026-09-23; `probe` scripts join package.json with step 0's probes; the `Secure` cookie check of production.test.js comes with sessions (step 3) |
 | 2 Core | todo | | |
 | 3 Auth | todo | | |
 | 4 Spotify + ReccoBeats clients | todo | | |
