@@ -3,6 +3,8 @@ import express from 'express'
 import { page } from './auth/pages.js'
 import { authRoutes } from './auth/routes.js'
 import { COOKIE_NAME, sessionMiddleware } from './auth/session.js'
+import { createReccoBeatsClient } from './reccobeats/client.js'
+import { createPlaylistsRepository } from './repositories/playlists.js'
 import { createUsersRepository } from './repositories/users.js'
 import { apiRoutes } from './routes/api.js'
 import { staticRoutes } from './routes/static.js'
@@ -48,6 +50,9 @@ const isFirestoreError = error => typeof error?.code === 'number' && typeof erro
 // Firestore emulator and fake upstream services.
 export function createApp({ firestore, config }) {
   const users = createUsersRepository(firestore)
+  const playlists = createPlaylistsRepository(firestore)
+  // One client for the whole server, so its cache serves every user.
+  const reccobeats = createReccoBeatsClient({ config })
   const app = express()
   app.disable('x-powered-by')
   app.use(securityHeaders)
@@ -57,7 +62,7 @@ export function createApp({ firestore, config }) {
   // Only the login and the API use the session, so static files never reach Firestore.
   app.use(['/auth', '/api'], sessionMiddleware({ firestore, config }))
   app.use(authRoutes({ config, users }))
-  app.use('/api', apiRoutes({ config, users }))
+  app.use('/api', apiRoutes({ config, users, playlists, reccobeats }))
   app.use('/api', notFound)
 
   app.use(staticRoutes(config.publicDir))

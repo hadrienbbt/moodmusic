@@ -4,12 +4,14 @@
 //   client would retry for about 40 s. Needs no emulator.
 // - Spotify failing: the fake Spotify scripts the failures; needs the
 //   emulator. The 429 cases really wait (1 + 2 s, then 1 + 2 + 4 s).
-// Later steps add the ReccoBeats failures.
+// - ReccoBeats failing, while making a playlist: same, with the fake
+//   ReccoBeats; the hang waits for the client's 10 s timeout.
 import { describe, test, before, after, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
 import crypto from 'node:crypto'
 
 import { startFailingFirestore } from './helpers/failing-firestore.js'
+import { startFakeReccoBeats } from './helpers/fake-reccobeats.js'
 import { fakeArtist, startFakeSpotify } from './helpers/fake-spotify.js'
 import { adminFirestore, emulatorHost, listDocuments, resetFirestore, skip as noEmulator } from './helpers/firestore.js'
 import { login } from './helpers/login.js'
@@ -158,5 +160,72 @@ describe('with Spotify failing', { skip: noEmulator }, () => {
     assert.equal(refused.status, 401)
     assert.deepEqual(refused.json, { error: 'reauth' })
     assert.equal((await client.request('/api/session')).status, 401)
+  })
+})
+
+describe('with ReccoBeats failing', { skip: noEmulator }, () => {
+  const APP_ORIGIN = 'http://moodmusic.test'
+  const seedTrack = { spotifyId: 'seed1', features: { valence: 0.75, energy: 0.5, danceability: 0.5 } }
+  let spotify
+  let reccobeats
+  let server
+  let users = 0
+
+  before(async () => {
+    spotify = await startFakeSpotify({ clientId: testEnv.SPOTIFY_CLIENT_ID, clientSecret: testEnv.SPOTIFY_CLIENT_SECRET })
+    reccobeats = await startFakeReccoBeats({ artists: [{ spotifyId: 'known1', name: 'Known', tracks: [seedTrack] }], recommendations: [seedTrack] })
+    server = await startServer({ ...testEnv, APP_ORIGIN, SPOTIFY_ACCOUNTS_URL: spotify.url, SPOTIFY_API_URL: spotify.url, RECCOBEATS_URL: reccobeats.url, FIRESTORE_EMULATOR_HOST: emulatorHost })
+  })
+  after(async () => {
+    await server?.stop()
+    await spotify?.stop()
+    await reccobeats?.stop()
+  })
+  beforeEach(() => resetFirestore())
+
+  // A logged-in user with one artist ReccoBeats knows, tagged "happy".
+  const loggedIn = async () => {
+    const id = `user${++users}`
+    spotify.addUser({ id })
+    const client = createClient(server.url)
+    await login(spotify, client, { as: id })
+    const now = new Date().toISOString()
+    await adminFirestore().doc(`users/${id}`).update({ artists: [{ id: 'known1', name: 'Known', image: null, moods: ['happy'], addedAt: now, refreshedAt: now }] })
+    return client
+  }
+  const createPlaylist = client => client.request('/api/playlists', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Origin: APP_ORIGIN },
+    body: JSON.stringify({ moods: { happy: 0.5 } }),
+  })
+  const playlistsCreated = () => spotify.requests.filter(request => request.path === '/v1/me/playlists' && request.method === 'POST').length
+
+  test('rate limited after the backoff: 429 with the delay, and no playlist', async () => {
+    const client = await loggedIn()
+    const before = playlistsCreated()
+    reccobeats.script('/v1/track/recommendation', ...Array(4).fill({ status: 429 }))
+    const limited = await createPlaylist(client)
+    assert.equal(limited.status, 429)
+    assert.equal(limited.headers.get('retry-after'), '5')
+    assert.deepEqual(limited.json, { error: 'Le moteur de recommandation limite les requêtes, réessaie dans 5 secondes.' })
+    assert.equal(playlistsCreated(), before)
+  })
+
+  test('a ReccoBeats outage answers 503', async () => {
+    const client = await loggedIn()
+    reccobeats.script('/v1/track/recommendation', { status: 500 })
+    const down = await createPlaylist(client)
+    assert.equal(down.status, 503)
+    assert.deepEqual(down.json, { error: 'Le moteur de recommandation est indisponible, réessaie plus tard.' })
+  })
+
+  test('a ReccoBeats that never answers is a 503 after the 10 s timeout', async () => {
+    const client = await loggedIn()
+    reccobeats.script('/v1/track/recommendation', { hang: true })
+    const started = Date.now()
+    const down = await createPlaylist(client)
+    assert.equal(down.status, 503)
+    assert.deepEqual(down.json, { error: 'Le moteur de recommandation est indisponible, réessaie plus tard.' })
+    assert.ok(Date.now() - started < 15_000)
   })
 })
