@@ -1,5 +1,6 @@
 import { RateLimitError } from './backoff.js'
 import { ReccoBeatsError } from './reccobeats/client.js'
+import { NoSeedsError } from './recommenders/index.js'
 import { ReauthError, SpotifyError } from './spotify/errors.js'
 
 // How failures of Spotify and ReccoBeats reach the user (plan §4.5): a status
@@ -7,6 +8,9 @@ import { ReauthError, SpotifyError } from './spotify/errors.js'
 // { status, body, headers?, endSession?, log? }, or undefined for any other
 // error.
 export function upstreamAnswer(error) {
+  if (error instanceof NoSeedsError) {
+    return { status: 422, body: { error: "Aucun des artistes choisis n'est connu du moteur de recommandation. Ajoute d'autres artistes favoris ou change d'émotion." } }
+  }
   if (error instanceof ReauthError) return { status: 401, body: { error: 'reauth' }, endSession: true }
   if (error instanceof RateLimitError) {
     const who = error.service === 'Spotify' ? 'Spotify' : 'Le moteur de recommandation'

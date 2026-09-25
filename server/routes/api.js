@@ -2,10 +2,22 @@ import express from 'express'
 
 import { MOODS } from '../../shared/moods.js'
 import { requireUser } from '../auth/routes.js'
-import { profileFromMoods } from '../core/index.js'
+import { pickArtists, playlistName, profileFromMoods, targetFromSelection } from '../core/index.js'
+import { recommenders } from '../recommenders/index.js'
 import { createSpotifyClient } from '../spotify/client.js'
 
 const STATES = MOODS.map(mood => mood.state)
+const PLAYLIST_TRACKS = 30
+const NO_TRACKS = "Aucun titre trouvé pour ces émotions. Ajoute d'autres artistes favoris ou change d'émotion."
+
+// What is wrong with a mood selection ({ state: x }), if anything.
+const selectionProblem = moods => {
+  if (moods === null || typeof moods !== 'object' || Array.isArray(moods) || Object.keys(moods).length === 0) return 'Sélectionne au moins une émotion'
+  for (const [state, x] of Object.entries(moods)) {
+    if (!STATES.includes(state)) return `Émotion inconnue : ${state.slice(0, 40)}`
+    if (typeof x !== 'number' || !(x >= 0 && x <= 1)) return `Valeur invalide pour ${state}`
+  }
+}
 
 // An artist as the API shows it. Its profile is computed from its moods on
 // every read, never stored (plan §4.4).
@@ -17,9 +29,9 @@ const artistView = artist => ({
   profile: profileFromMoods(artist.moods),
 })
 
-// The JSON API (plan §4.5). Everything under /me needs a logged-in user and
-// only ever reaches that user's own data.
-export function apiRoutes({ config, users }) {
+// The JSON API (plan §4.5). Everything under /me and /playlists needs a
+// logged-in user and only ever reaches that user's own data.
+export function apiRoutes({ config, users, playlists, reccobeats }) {
   const router = express.Router()
   const spotifyFor = req => createSpotifyClient({ config, req })
 
@@ -76,6 +88,34 @@ export function apiRoutes({ config, users }) {
   me.delete('/artists/:id', async (req, res) => {
     await users.removeArtist(req.session.user.id, req.params.id)
     res.status(204).end()
+  })
+
+  me.get('/playlists', async (req, res) => res.json({ playlists: await playlists.list(req.session.user.id) }))
+
+  // The whole pipeline of plan §1.5 and §4.7: target, seed artists, the
+  // configured engine, then the playlist on Spotify and in the history.
+  router.post('/playlists', requireUser, express.json({ limit: '10kb' }), async (req, res) => {
+    const started = Date.now()
+    const { moods, name, public: isPublic } = req.body ?? {}
+    const problem = selectionProblem(moods)
+    if (problem) return res.status(400).json({ error: problem })
+    const userId = req.session.user.id
+    const target = targetFromSelection(moods)
+    const picked = pickArtists((await users.get(userId))?.artists ?? [], target)
+    if (picked.error) return res.status(422).json({ error: picked.error })
+
+    const spotify = spotifyFor(req)
+    const { trackUris, engine, seeds, topUp } = await recommenders[config.recommender].recommend({
+      seedArtists: picked.artists, target, limit: PLAYLIST_TRACKS, spotify, reccobeats, market: config.market,
+    })
+    if (trackUris.length === 0) return res.status(422).json({ error: NO_TRACKS })
+    const playlist = { name: playlistName(name, moods), public: isPublic === true }
+    const created = await spotify.createPlaylist(playlist)
+    await spotify.addItems(created.id, trackUris)
+    const result = { id: created.id, ...playlist, url: `https://open.spotify.com/playlist/${created.id}`, trackCount: trackUris.length, engine }
+    await playlists.save(userId, { ...result, moods, target, artists: picked.artists })
+    console.log(`playlist user=${userId} engine=${engine} seeds=${seeds}/${picked.artists.length} tracks=${trackUris.length} ms=${Date.now() - started}${topUp === undefined ? '' : ` topup=${topUp}`}`)
+    res.status(201).json({ playlist: { id: result.id, name: result.name, url: result.url, trackCount: result.trackCount, engine, public: result.public }, artists: picked.artists, target })
   })
 
   router.use('/me', me)
